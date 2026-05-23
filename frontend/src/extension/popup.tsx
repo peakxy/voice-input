@@ -4,6 +4,8 @@ import ReactDOM from "react-dom/client";
 import { ExtensionShell } from "@/extension/ExtensionShell";
 import "@/index.css";
 
+document.body.dataset.surface = "popup";
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ExtensionShell surface="popup" />

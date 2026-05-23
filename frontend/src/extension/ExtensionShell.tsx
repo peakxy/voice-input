@@ -53,6 +53,26 @@ async function sendExtensionMessage(message: ExtensionMessage): Promise<Extensio
   return response ?? { ok: false, error: "扩展后台没有响应" };
 }
 
+async function ensureMicrophonePermission(): Promise<void> {
+  if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    throw new Error("当前浏览器不支持麦克风采集");
+  }
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    const name = (error as DOMException | undefined)?.name;
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      throw new Error("麦克风权限被拒绝，请在扩展图标右键 → 网站设置中允许麦克风。");
+    }
+    if (name === "NotFoundError") {
+      throw new Error("未检测到麦克风设备。");
+    }
+    throw error instanceof Error ? error : new Error("麦克风授权失败");
+  }
+  stream.getTracks().forEach((track) => track.stop());
+}
+
 export function ExtensionShell({ surface }: ExtensionShellProps) {
   const [state, setState] = useState<ExtensionRecordingState>(() => createInitialRecordingState());
   const [user, setUser] = useState<UserState>({ username: null, authenticated: false });
@@ -68,6 +88,8 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
   const canStart = user.authenticated && !busy && !isRecording && !isStarting;
   const finalText = useMemo(() => textForInsertion(state, false), [state]);
   const polishedText = useMemo(() => textForInsertion(state, true), [state]);
+  const isSidepanel = surface === "sidepanel";
+  const isPopup = surface === "popup";
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +157,13 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
   const start = async () => {
     setBusy(true);
     setMessage(null);
+    try {
+      await ensureMicrophonePermission();
+    } catch (error) {
+      setMessage(extractErrorMessage(error, "麦克风授权失败"));
+      setBusy(false);
+      return;
+    }
     const response = await sendExtensionMessage({
       type: "recording-start",
       hotwordGroup: state.activeGroup,
@@ -222,8 +251,18 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
 
   return (
     <div className="min-h-full bg-bg text-slate-100">
-      <div className="mx-auto flex min-h-full w-full max-w-[420px] flex-col px-3 py-3">
-        <header className="flex items-center justify-between gap-2">
+      <div
+        className={clsx(
+          "flex min-h-full w-full flex-col",
+          isSidepanel ? "p-3" : "mx-auto max-w-[420px] px-3 py-3",
+        )}
+      >
+        <header
+          className={clsx(
+            "flex items-center gap-2",
+            isSidepanel ? "justify-between rounded-xl border border-border/80 bg-surface/60 px-3 py-2.5" : "justify-between",
+          )}
+        >
           <div className="flex min-w-0 items-center gap-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-accent/30 bg-accentSoft text-accent">
               <Mic size={17} />
@@ -256,14 +295,14 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
           </div>
         </header>
 
-        {surface === "popup" && (
+        {isPopup && (
           <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={requestPanel}>
             <PanelRightOpen size={14} />
             打开侧边栏
           </Button>
         )}
 
-        <main className="mt-4 flex-1">
+        <main className={clsx("flex-1", isSidepanel ? "mt-3 min-h-0" : "mt-4")}>
           {view === "loading" ? (
             <LoadingView />
           ) : view === "login" ? (
@@ -298,6 +337,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
               isStarting={isStarting}
               message={message}
               polishedText={polishedText}
+              status={state.status}
               state={state}
               onGroupChange={(group) => setState((current) => ({ ...current, activeGroup: group }))}
               onInsert={insert}
@@ -314,7 +354,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
 
 function LoadingView() {
   return (
-    <div className="flex min-h-[220px] items-center justify-center text-xs text-muted">
+    <div className="flex min-h-[180px] items-center justify-center text-xs text-muted">
       <Loader2 size={16} className="mr-2 animate-spin" />
       正在同步登录态…
     </div>
@@ -329,7 +369,7 @@ function WelcomeView({
   onLogin: () => void;
 }) {
   return (
-    <section className="flex min-h-[250px] flex-col items-center justify-center gap-4 text-center">
+    <section className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center">
       <button
         type="button"
         className="flex h-16 w-16 items-center justify-center rounded-full border border-accent/40 bg-accentSoft text-accent transition hover:scale-[1.03] hover:border-accent"
@@ -340,14 +380,14 @@ function WelcomeView({
         <User size={27} />
       </button>
       <div className="space-y-1">
-        <h2 className="text-base font-semibold text-slate-100">登录后开始语音输入</h2>
+        <h2 className="text-base font-semibold text-slate-100">登录后即可开始</h2>
         <p className="mx-auto max-w-[240px] text-xs leading-relaxed text-muted">
-          使用 Web 应用账号同步扩展登录态。
+          用 Web 账号同步扩展登录态。
         </p>
       </div>
       <Button size="sm" className="w-full max-w-[220px]" onClick={onLogin}>
         <User size={14} />
-        去登录
+        登录
       </Button>
       {message ? <Message text={message} tone="muted" /> : null}
     </section>
@@ -385,7 +425,7 @@ function LoginView({
       </button>
       <div className="space-y-1">
         <h2 className="text-lg font-semibold text-slate-100">登录 Voice Input</h2>
-        <p className="text-xs text-muted">登录后自动回到实时语音输入。</p>
+        <p className="text-xs text-muted">登录后返回录音页。</p>
       </div>
       <form
         className="space-y-3"
@@ -438,6 +478,7 @@ function RecordView({
   isStarting,
   message,
   polishedText,
+  status,
   state,
   onGroupChange,
   onInsert,
@@ -453,6 +494,7 @@ function RecordView({
   isStarting: boolean;
   message: string | null;
   polishedText: string;
+  status: ExtensionRecordingState["status"];
   state: ExtensionRecordingState;
   onGroupChange: (group: string) => void;
   onInsert: (mode: InsertMode) => void;
@@ -461,29 +503,25 @@ function RecordView({
   onStop: () => void;
 }) {
   return (
-    <div className="space-y-3">
-      <section className="space-y-3 border-y border-border/80 py-3">
-        <div className="flex flex-wrap gap-2">
-          {groups.map((group) => (
-            <Button
-              key={group}
-              size="sm"
-              variant={group === state.activeGroup ? "primary" : "secondary"}
-              disabled={isRecording || isStarting}
-              onClick={() => onGroupChange(group)}
-            >
-              {group}
-            </Button>
-          ))}
+    <div className="flex min-h-0 flex-col gap-3">
+      <section className="rounded-xl border border-border/80 bg-surface/60 p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">会话</p>
+            <h2 className="truncate text-sm font-semibold text-slate-100">实时录入</h2>
+          </div>
+          <Badge variant={isRecording ? "success" : status === "error" ? "warning" : "muted"}>
+            {labelForStatus(status)}
+          </Badge>
         </div>
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           {!isRecording && !isStarting ? (
-            <Button size="sm" disabled={!canStart} onClick={onStart}>
+            <Button size="sm" disabled={!canStart} onClick={onStart} className="justify-self-stretch">
               {busy ? <Loader2 size={14} className="animate-spin" /> : <Mic size={14} />}
               开始
             </Button>
           ) : (
-            <Button size="sm" variant="danger" disabled={busy} onClick={onStop}>
+            <Button size="sm" variant="danger" disabled={busy} onClick={onStop} className="justify-self-stretch">
               <MicOff size={14} />
               停止
             </Button>
@@ -500,24 +538,46 @@ function RecordView({
             <RotateCcw size={14} />
           </Button>
         </div>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {groups.map((group) => (
+            <Button
+              key={group}
+              size="sm"
+              variant={group === state.activeGroup ? "primary" : "secondary"}
+              disabled={isRecording || isStarting}
+              onClick={() => onGroupChange(group)}
+              className="shrink-0 whitespace-nowrap"
+            >
+              {group}
+            </Button>
+          ))}
+        </div>
       </section>
 
-      <TranscriptPanel state={state} />
+      <section className="min-h-0 flex-1 rounded-xl border border-border/80 bg-surface/40 p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-muted">结果</p>
+            <h3 className="text-sm font-semibold text-slate-100">转写内容</h3>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button size="sm" variant="secondary" disabled={!finalText} onClick={() => onInsert("final")}>
+              <CopyCheck size={14} />
+              原文
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!polishedText}
+              onClick={() => onInsert("polished")}
+            >
+              <Sparkles size={14} />
+              润色
+            </Button>
+          </div>
+        </div>
 
-      <section className="grid grid-cols-2 gap-2">
-        <Button size="sm" variant="secondary" disabled={!finalText} onClick={() => onInsert("final")}>
-          <CopyCheck size={14} />
-          插入原文
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!polishedText}
-          onClick={() => onInsert("polished")}
-        >
-          <Sparkles size={14} />
-          插入润色
-        </Button>
+        <TranscriptPanel state={state} />
       </section>
 
       {message || state.error ? (
@@ -545,14 +605,14 @@ function Message({ text, tone }: { text: string; tone: "danger" | "muted" }) {
 function TranscriptPanel({ state }: { state: ExtensionRecordingState }) {
   if (!state.partial && state.finals.length === 0) {
     return (
-      <section className="min-h-[96px] rounded-md border border-dashed border-border bg-surface/45 px-3 py-8 text-center text-xs text-muted">
+      <section className="flex min-h-[180px] items-center justify-center rounded-md border border-dashed border-border bg-surface/45 px-3 py-8 text-center text-xs text-muted">
         转写内容会显示在这里
       </section>
     );
   }
 
   return (
-    <section className="max-h-[310px] space-y-2 overflow-y-auto rounded-md border border-border bg-surface/65 p-3">
+    <section className="max-h-[calc(100vh-250px)] space-y-2 overflow-y-auto rounded-md border border-border bg-surface/65 p-3">
       {state.finals.map((sentence) => (
         <p
           key={sentence.id}

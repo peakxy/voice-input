@@ -12,6 +12,27 @@ body,
   height: 100%;
 }
 
+body[data-surface="sidepanel"] {
+  min-width: 360px;
+  overflow: hidden;
+}
+
+body[data-surface="sidepanel"] #root {
+  min-width: 360px;
+}
+
+body[data-surface="popup"] {
+  width: 420px;
+  min-width: 420px;
+  min-height: 480px;
+  overflow-x: hidden;
+}
+
+body[data-surface="popup"] #root {
+  width: 420px;
+  min-width: 420px;
+}
+
 body {
   margin: 0;
   background-color: #0b0d10;
