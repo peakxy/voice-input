@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.peakxy.input.mapper.TranscriptMapper">
+
+    <resultMap id="transcriptResult" type="cn.peakxy.input.domain.Transcript">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="rawText" column="raw_text"/>
+        <result property="polishedText" column="polished_text"/>
+        <result property="durationMs" column="duration_ms"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findRecentByUserId" resultMap="transcriptResult">
+        SELECT id, user_id, session_id, raw_text, polished_text, duration_ms, created_at
+        FROM transcript
+        WHERE user_id = #{userId}
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+
+    <insert id="insert" parameterType="cn.peakxy.input.domain.Transcript"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO transcript (user_id, session_id, raw_text, polished_text, duration_ms, created_at)
+        VALUES (#{userId}, #{sessionId}, #{rawText}, #{polishedText}, #{durationMs}, NOW(6))
+    </insert>
+
+</mapper>

@@ -2,7 +2,7 @@ package cn.peakxy.input.security;
 
 import cn.peakxy.input.domain.CurrentUser;
 import cn.peakxy.input.domain.UserAccount;
-import cn.peakxy.input.repository.UserRepository;
+import cn.peakxy.input.mapper.UserMapper;
 import cn.peakxy.input.service.JwtService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
@@ -22,11 +22,11 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UserRepository userRepository;
+    private final UserMapper userMapper;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserMapper userMapper) {
         this.jwtService = jwtService;
-        this.userRepository = userRepository;
+        this.userMapper = userMapper;
     }
 
     @Override
@@ -40,7 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Claims claims = jwtService.parseClaims(token);
                 Long userId = claims.get("uid", Long.class);
                 if (userId != null) {
-                    UserAccount user = userRepository.findById(userId).orElse(null);
+                    UserAccount user = userMapper.findById(userId).orElse(null);
                     if (user != null) {
                         CurrentUser currentUser = new CurrentUser(user.getId(), user.getUsername());
                         UsernamePasswordAuthenticationToken authentication =

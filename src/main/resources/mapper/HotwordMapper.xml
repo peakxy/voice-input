@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.peakxy.input.mapper.HotwordMapper">
+
+    <resultMap id="hotwordResult" type="cn.peakxy.input.domain.Hotword">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="groupName" column="group_name"/>
+        <result property="word" column="word"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="hotwordResult">
+        SELECT id, user_id, group_name, word, created_at
+        FROM hotword
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByUserIdAndGroupNameOrderByIdAsc" resultMap="hotwordResult">
+        SELECT id, user_id, group_name, word, created_at
+        FROM hotword
+        WHERE user_id = #{userId}
+          AND group_name = #{groupName}
+        ORDER BY id ASC
+    </select>
+
+    <select id="findByUserIdOrderByGroupNameAscIdAsc" resultMap="hotwordResult">
+        SELECT id, user_id, group_name, word, created_at
+        FROM hotword
+        WHERE user_id = #{userId}
+        ORDER BY group_name ASC, id ASC
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*) FROM hotword WHERE user_id = #{userId}
+    </select>
+
+    <select id="existsByUserIdAndGroupNameAndWord" resultType="boolean">
+        SELECT EXISTS(
+            SELECT 1 FROM hotword
+            WHERE user_id = #{userId}
+              AND group_name = #{groupName}
+              AND word = #{word}
+        )
+    </select>
+
+    <insert id="insert" parameterType="cn.peakxy.input.domain.Hotword"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO hotword (user_id, group_name, word, created_at)
+        VALUES (#{userId}, #{groupName}, #{word}, NOW(6))
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM hotword WHERE id = #{id}
+    </delete>
+
+</mapper>
