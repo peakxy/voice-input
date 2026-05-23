@@ -169,38 +169,42 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
   };
 
   return (
-    <div className="min-h-full bg-bg px-3 py-3 text-slate-100">
-      <div className="space-y-3">
-        <header className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
+    <div className="min-h-full min-w-[320px] bg-bg px-4 py-4 text-slate-100">
+      <div className="mx-auto max-w-[360px] space-y-3">
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <Mic size={16} className="text-accent" />
-              <h1 className="truncate text-sm font-semibold">Voice Input</h1>
+              <Mic size={16} className="shrink-0 text-accent" />
+              <h1 className="min-w-0 truncate text-base font-semibold leading-6">Voice Input</h1>
             </div>
-            <p className="truncate text-xs text-muted">
-              {user.authenticated ? user.username : "请先在 Web 应用登录"}
+            <p className="mt-0.5 min-w-0 truncate text-xs text-muted">
+              {user.authenticated ? user.username : "扩展登录后可录音"}
             </p>
           </div>
-          <Badge variant={state.status === "error" ? "warning" : isRecording ? "success" : "muted"}>
+          <Badge
+            className="shrink-0 px-3 py-1 text-[11px]"
+            variant={state.status === "error" ? "warning" : isRecording ? "success" : "muted"}
+          >
             {labelForStatus(state.status)}
           </Badge>
         </header>
 
         {surface === "popup" && (
-          <Button size="sm" variant="secondary" className="w-full" onClick={requestPanel}>
+          <Button size="sm" variant="secondary" className="h-11 w-full text-sm" onClick={requestPanel}>
             <PanelRightOpen size={14} />
-            打开侧边栏
+            打开侧栏
           </Button>
         )}
 
         {!user.authenticated && (
-          <section className="space-y-2 rounded-md border border-border bg-surface/75 p-3">
+          <section className="space-y-3 rounded-md border border-border bg-surface/75 p-3">
             <div className="space-y-1">
               <Label htmlFor={`${surface}-username`} className="text-xs">
                 用户名
               </Label>
               <Input
                 id={`${surface}-username`}
+                className="h-11 text-base"
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 autoComplete="username"
@@ -213,24 +217,31 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
               <Input
                 id={`${surface}-password`}
                 type="password"
+                className="h-11 text-base"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
               />
             </div>
-            <Button className="w-full" size="sm" disabled={busy || !username || !password} onClick={login}>
+            <Button
+              className="h-11 w-full text-sm"
+              size="sm"
+              disabled={busy || !username || !password}
+              onClick={login}
+            >
               {busy ? <Loader2 size={14} className="animate-spin" /> : null}
               登录
             </Button>
           </section>
         )}
 
-        <section className="space-y-2 rounded-md border border-border bg-surface/75 p-3">
+        <section className="space-y-3 rounded-md border border-border bg-surface/75 p-3">
           <div className="flex flex-wrap gap-2">
             {groups.map((group) => (
               <Button
                 key={group}
                 size="sm"
+                className="h-9 max-w-full px-3 text-xs"
                 variant={group === state.activeGroup ? "primary" : "secondary"}
                 disabled={isRecording || isStarting}
                 onClick={() => setState((current) => ({ ...current, activeGroup: group }))}
@@ -241,17 +252,23 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
           </div>
           <div className="grid grid-cols-2 gap-2">
             {!isRecording && !isStarting ? (
-              <Button size="sm" disabled={!canStart} onClick={start}>
+              <Button size="sm" className="h-11 text-sm" disabled={!canStart} onClick={start}>
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Mic size={14} />}
                 开始
               </Button>
             ) : (
-              <Button size="sm" variant="danger" disabled={busy} onClick={stop}>
+              <Button size="sm" className="h-11 text-sm" variant="danger" disabled={busy} onClick={stop}>
                 <MicOff size={14} />
                 停止
               </Button>
             )}
-            <Button size="sm" variant="ghost" disabled={isRecording || isStarting} onClick={reset}>
+            <Button
+              size="sm"
+              className="h-11 text-sm"
+              variant="ghost"
+              disabled={isRecording || isStarting}
+              onClick={reset}
+            >
               <RotateCcw size={14} />
               清空
             </Button>
@@ -261,12 +278,19 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
         <TranscriptPanel state={state} />
 
         <section className="grid grid-cols-2 gap-2">
-          <Button size="sm" variant="secondary" disabled={!finalText} onClick={() => insert("final")}>
+          <Button
+            size="sm"
+            className="h-11 px-2 text-sm"
+            variant="secondary"
+            disabled={!finalText}
+            onClick={() => insert("final")}
+          >
             <CopyCheck size={14} />
             插入原文
           </Button>
           <Button
             size="sm"
+            className="h-11 px-2 text-sm"
             variant="secondary"
             disabled={!polishedText}
             onClick={() => insert("polished")}
@@ -279,7 +303,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
         {(message || state.error) && (
           <p
             className={clsx(
-              "rounded-md border px-3 py-2 text-xs leading-relaxed",
+              "whitespace-pre-wrap break-words rounded-md border px-3 py-2 text-xs leading-relaxed",
               state.status === "error"
                 ? "border-red-500/40 bg-red-500/10 text-red-200"
                 : "border-border bg-surface text-muted",
@@ -297,13 +321,13 @@ function TranscriptPanel({ state }: { state: ExtensionRecordingState }) {
   if (!state.partial && state.finals.length === 0) {
     return (
       <section className="rounded-md border border-dashed border-border bg-surface/55 px-3 py-6 text-center text-xs text-muted">
-        转写内容会显示在这里。
+        转写内容会显示在这里
       </section>
     );
   }
 
   return (
-    <section className="max-h-[340px] space-y-2 overflow-y-auto rounded-md border border-border bg-surface/75 p-3">
+    <section className="max-h-[280px] space-y-2 overflow-y-auto rounded-md border border-border bg-surface/75 p-3">
       {state.finals.map((sentence) => (
         <p
           key={sentence.id}

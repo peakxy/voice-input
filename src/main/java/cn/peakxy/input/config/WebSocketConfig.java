@@ -24,6 +24,11 @@ public class WebSocketConfig implements WebSocketConfigurer {
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(voiceInputWebSocketHandler, "/ws/transcript")
                 .addInterceptors(jwtHandshakeInterceptor)
-                .setAllowedOrigins("*");
+                .setAllowedOriginPatterns(
+                        "http://localhost:5173",
+                        "http://127.0.0.1:5173",
+                        "http://localhost:3000",
+                        "chrome-extension://*"
+                );
     }
 }

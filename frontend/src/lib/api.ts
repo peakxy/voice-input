@@ -1,5 +1,6 @@
 import axios, { AxiosError, type AxiosRequestConfig } from "axios";
 
+import { readAuthSnapshot } from "@/lib/authSession";
 import { useAuthStore } from "@/stores/auth";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
@@ -9,8 +10,8 @@ export const api = axios.create({
   withCredentials: false,
 });
 
-api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+api.interceptors.request.use(async (config) => {
+  const token = useAuthStore.getState().token ?? (await readAuthSnapshot()).token;
   if (token) {
     config.headers = config.headers ?? {};
     config.headers.Authorization = `Bearer ${token}`;
@@ -26,7 +27,11 @@ api.interceptors.response.use(
       const { token, logout } = useAuthStore.getState();
       if (token) {
         logout();
-        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        if (
+          typeof window !== "undefined" &&
+          window.location.protocol.startsWith("http") &&
+          window.location.pathname !== "/login"
+        ) {
           window.location.assign("/login");
         }
       }
