@@ -10,7 +10,7 @@ public record AppProperties(
 ) {
     public record Jwt(String issuer, String secret, long ttlMinutes) {}
 
-    public record Asr(String provider, String hotwordDefaultGroup, String model, String apiKey, String workspace) {}
+    public record Asr(String provider, String hotwordDefaultGroup, String model, String apiKey, String workspace, String url) {}
 
-    public record Llm(String model, String baseUrl, String apiKey) {}
+    public record Llm(String model, String baseUrl, String apiKey, String completionsPath, String embeddingsPath) {}
 }

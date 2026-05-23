@@ -18,8 +18,12 @@ Set real provider credentials before demo:
 
 ```bash
 export APP_ASR_API_KEY=your_dashscope_key
-export SPRING_AI_OPENAI_API_KEY=your_llm_key
-export SPRING_AI_OPENAI_BASE_URL=https://api.deepseek.com
+export APP_ASR_MODEL=qwen3-asr-flash-realtime
+export APP_ASR_URL=wss://dashscope.aliyuncs.com/api-ws/v1/realtime
+export APP_LLM_MODEL=gpt-5.5
+export APP_LLM_BASE_URL=https://api-s.zwenooo.link/
+export APP_LLM_COMPLETIONS_PATH=v1/chat/completions
+export APP_LLM_EMBEDDINGS_PATH=v1/embeddings
 ```
 
 The demo WebSocket endpoint is:
