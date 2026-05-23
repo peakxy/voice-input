@@ -1,6 +1,6 @@
 package cn.peakxy.input.service;
 
-import cn.peakxy.input.config.JwtProperties;
+import cn.peakxy.input.config.AppProperties;
 import cn.peakxy.input.domain.UserAccount;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.Claims;
@@ -18,16 +18,16 @@ import java.util.Date;
 @Service
 public class JwtService {
 
-    private final JwtProperties properties;
+    private final AppProperties properties;
     private SecretKey secretKey;
 
-    public JwtService(JwtProperties properties) {
+    public JwtService(AppProperties properties) {
         this.properties = properties;
     }
 
     @PostConstruct
     void init() {
-        byte[] bytes = properties.secret().getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = properties.jwt().secret().getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 32) {
             throw new IllegalStateException("JWT secret must be at least 32 bytes for HS256");
         }
@@ -36,9 +36,9 @@ public class JwtService {
 
     public String generateToken(UserAccount user) {
         Instant now = Instant.now();
-        Instant expiry = now.plus(properties.ttlMinutes(), ChronoUnit.MINUTES);
+        Instant expiry = now.plus(properties.jwt().ttlMinutes(), ChronoUnit.MINUTES);
         return Jwts.builder()
-                .issuer(properties.issuer())
+                .issuer(properties.jwt().issuer())
                 .subject(user.getUsername())
                 .claim("uid", user.getId())
                 .issuedAt(Date.from(now))
