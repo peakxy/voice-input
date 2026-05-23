@@ -33,9 +33,13 @@ app:
   asr:
     provider: dashscope
     hotword-default-group: 通用
+    model: omni-realtime
+    api-key: change-me-in-local-env
+    workspace: default
   llm:
     model: deepseek-chat
     base-url: https://api.deepseek.com
+    api-key: change-me-in-local-env
 
 management:
   endpoints:
