@@ -64,7 +64,6 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         messageSender.register(session);
-        send(session, new WebSocketServerMessage("ready", session.getId(), null, null));
     }
 
     @Override
