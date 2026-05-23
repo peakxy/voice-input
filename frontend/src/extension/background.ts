@@ -1,4 +1,5 @@
 import { getChrome, openSidePanelForCurrentTab, queryActiveTabId } from "@/lib/chrome";
+import { readAuthSnapshot } from "@/lib/authSession";
 import {
   isExtensionMessage,
   type ExtensionMessage,
@@ -69,6 +70,10 @@ async function openPanel(): Promise<ExtensionResponse> {
 
 async function handleMessage(message: ExtensionMessage): Promise<ExtensionResponse> {
   switch (message.type) {
+    case "auth-get-snapshot": {
+      const snapshot = await readAuthSnapshot();
+      return { ok: true, snapshot };
+    }
     case "open-recording-panel":
       return openPanel();
     case "recording-get-state":

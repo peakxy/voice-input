@@ -1,3 +1,5 @@
+import type { AuthSnapshot } from "@/lib/authSession";
+
 export type ExtensionSurface = "popup" | "sidepanel" | "offscreen";
 export type ExtensionTarget = "background" | "offscreen" | "ui";
 
@@ -17,6 +19,7 @@ export type ExtensionRecordingState = {
 export type InsertMode = "final" | "polished";
 
 export type ExtensionMessage =
+  | { target?: ExtensionTarget; type: "auth-get-snapshot" }
   | { target?: ExtensionTarget; type: "extension-ready"; surface: ExtensionSurface }
   | { target?: ExtensionTarget; type: "open-recording-panel" }
   | { target?: ExtensionTarget; type: "content-ready"; url: string }
@@ -30,7 +33,7 @@ export type ExtensionMessage =
   | { target?: ExtensionTarget; type: "insert-current-transcript"; mode: InsertMode };
 
 export type ExtensionResponse =
-  | { ok: true; state?: ExtensionRecordingState; inserted?: boolean }
+  | { ok: true; state?: ExtensionRecordingState; inserted?: boolean; snapshot?: AuthSnapshot }
   | { ok: false; error: string };
 
 export function isExtensionMessage(message: unknown): message is ExtensionMessage {

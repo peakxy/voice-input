@@ -1,4 +1,3 @@
-import { readAuthSnapshot } from "@/lib/authSession";
 import { startMicrophone, type AudioStreamHandle } from "@/lib/audio";
 import { getChrome } from "@/lib/chrome";
 import { TranscriptSocket } from "@/lib/transcriptSocket";
@@ -8,6 +7,7 @@ import {
   type ExtensionRecordingState,
   type ExtensionResponse,
 } from "@/extension/messages";
+import { readExtensionAuthSnapshot } from "@/extension/auth";
 import {
   appendFinal,
   applyPolished,
@@ -54,7 +54,7 @@ async function startRecording(hotwordGroup: string): Promise<ExtensionResponse> 
   resetFinalCounter();
   setState({ ...createInitialRecordingState(hotwordGroup), status: "starting" });
 
-  const snapshot = await readAuthSnapshot();
+  const snapshot = await readExtensionAuthSnapshot();
   if (!snapshot.token) {
     const message = "扩展未登录，请先在 Web 应用登录后再试。";
     setState({ ...state, status: "error", error: message });
