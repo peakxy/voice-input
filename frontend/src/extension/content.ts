@@ -3,10 +3,13 @@ import { isExtensionMessage, type ExtensionMessage, type ExtensionResponse } fro
 
 const chrome = getChrome();
 
-function activeEditable(): HTMLInputElement | HTMLTextAreaElement | HTMLElement | null {
-  const active = document.activeElement;
-  if (!active) return null;
-  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+type EditableTarget = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+
+let lastEditable: EditableTarget | null = null;
+
+function isEditableElement(node: Element | null): node is EditableTarget {
+  if (!node) return false;
+  if (node instanceof HTMLInputElement) {
     const blockedTypes = new Set([
       "button",
       "checkbox",
@@ -18,32 +21,63 @@ function activeEditable(): HTMLInputElement | HTMLTextAreaElement | HTMLElement 
       "reset",
       "submit",
     ]);
-    if (active instanceof HTMLInputElement && blockedTypes.has(active.type)) return null;
-    if (active.readOnly || active.disabled) return null;
-    return active;
+    if (blockedTypes.has(node.type)) return false;
+    if (node.readOnly || node.disabled) return false;
+    return true;
   }
-  if (active instanceof HTMLElement && active.isContentEditable) {
-    return active;
+  if (node instanceof HTMLTextAreaElement) {
+    return !node.readOnly && !node.disabled;
   }
+  if (node instanceof HTMLElement && node.isContentEditable) {
+    return true;
+  }
+  return false;
+}
+
+function rememberFocus(node: Element | null) {
+  if (isEditableElement(node)) {
+    lastEditable = node;
+    (window as unknown as { __voiceInputLastEditable?: Element }).__voiceInputLastEditable = node;
+  }
+}
+
+document.addEventListener(
+  "focusin",
+  (event) => rememberFocus(event.target as Element | null),
+  true,
+);
+document.addEventListener("selectionchange", () => {
+  const active = document.activeElement;
+  if (isEditableElement(active)) lastEditable = active;
+});
+
+function activeEditable(): EditableTarget | null {
+  const active = document.activeElement;
+  if (isEditableElement(active)) return active;
+  if (lastEditable && document.contains(lastEditable)) return lastEditable;
   return null;
 }
 
 function insertIntoTextControl(target: HTMLInputElement | HTMLTextAreaElement, text: string) {
   const start = target.selectionStart ?? target.value.length;
   const end = target.selectionEnd ?? target.value.length;
+  target.focus({ preventScroll: true });
   target.setRangeText(text, start, end, "end");
   target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
   target.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function insertIntoContentEditable(target: HTMLElement, text: string) {
-  target.focus();
+  target.focus({ preventScroll: true });
   const selection = window.getSelection();
   if (!selection) return;
-  if (selection.rangeCount === 0) {
+  const targetContains =
+    selection.rangeCount > 0 && target.contains(selection.getRangeAt(0).startContainer);
+  if (!targetContains) {
     const range = document.createRange();
     range.selectNodeContents(target);
     range.collapse(false);
+    selection.removeAllRanges();
     selection.addRange(range);
   }
   const range = selection.getRangeAt(0);
@@ -59,7 +93,7 @@ function insertIntoContentEditable(target: HTMLElement, text: string) {
 
 function insertText(text: string): ExtensionResponse {
   const target = activeEditable();
-  if (!target) return { ok: false, error: "当前页面没有聚焦的可编辑输入框" };
+  if (!target) return { ok: false, error: "请先点击页面上的输入框，再回到扩展点击插入" };
   if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
     insertIntoTextControl(target, text);
   } else {
@@ -70,8 +104,15 @@ function insertText(text: string): ExtensionResponse {
 
 chrome?.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
   if (!isExtensionMessage(message) || message.type !== "insert-transcript") return false;
-  sendResponse(insertText(message.text));
-  return false;
+  try {
+    sendResponse(insertText(message.text));
+  } catch (error) {
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "插入时发生错误",
+    });
+  }
+  return true;
 });
 
 void chrome?.runtime?.sendMessage({

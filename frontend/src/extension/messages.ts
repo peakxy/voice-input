@@ -30,7 +30,7 @@ export type ExtensionMessage =
   | { target?: ExtensionTarget; type: "recording-state"; state: ExtensionRecordingState }
   | { target?: ExtensionTarget; type: "recording-error"; message: string }
   | { target?: ExtensionTarget; type: "insert-transcript"; text: string }
-  | { target?: ExtensionTarget; type: "insert-current-transcript"; mode: InsertMode };
+  | { target?: ExtensionTarget; type: "insert-current-transcript"; mode: InsertMode; text?: string };
 
 export type ExtensionResponse =
   | { ok: true; state?: ExtensionRecordingState; inserted?: boolean; snapshot?: AuthSnapshot }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ButtonHTMLAttributes } from "react";
 import {
   ArrowLeft,
   Check,
@@ -171,9 +171,9 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
     }
   };
 
-  const insert = async (mode: InsertMode) => {
-    const response = await sendExtensionMessage({ type: "insert-current-transcript", mode });
-    setMessage(response.ok ? "已插入当前页面" : response.error);
+  const insert = async (mode: InsertMode, text?: string) => {
+    const response = await sendExtensionMessage({ type: "insert-current-transcript", mode, text });
+    setMessage(response.ok ? "已插入光标处" : response.error);
   };
 
   const login = async () => {
@@ -260,10 +260,15 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
         </header>
 
         {surface === "popup" && (
-          <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={requestPanel}>
-            <PanelRightOpen size={14} />
-            打开侧边栏
-          </Button>
+          <div className="mt-3 space-y-2">
+            <Button size="sm" variant="secondary" className="w-full" onClick={requestPanel}>
+              <PanelRightOpen size={14} />
+              打开侧边栏
+            </Button>
+            <p className="rounded-md border border-border/70 bg-surface/40 px-3 py-2 text-xs leading-relaxed text-muted">
+              想插入到光标处？请用侧边栏。点开扩展图标的弹窗会因为失焦自动关闭。
+            </p>
+          </div>
         )}
 
         <main className="mt-4 flex-1">
@@ -464,7 +469,7 @@ function RecordView({
   state: ExtensionRecordingState;
   onDisplayModeChange: (mode: DisplayMode) => void;
   onGroupChange: (group: string) => void;
-  onInsert: (mode: InsertMode) => void;
+  onInsert: (mode: InsertMode, text?: string) => void;
   onReset: () => void;
   onStart: () => void;
   onStop: () => void;
@@ -555,7 +560,12 @@ function RecordView({
         <CopyButton text={activeText} label="复制全部" />
       </section>
 
-      <TranscriptPanel state={state} displayMode={displayMode} />
+      <TranscriptPanel
+        state={state}
+        displayMode={displayMode}
+        insertMode={insertMode}
+        onInsert={onInsert}
+      />
 
       <Button
         size="sm"
@@ -565,7 +575,7 @@ function RecordView({
         onClick={() => onInsert(insertMode)}
       >
         <Send size={14} />
-        插入到当前页面
+        插入全部到光标处
       </Button>
 
       {message || state.error ? (
@@ -593,9 +603,13 @@ function Message({ text, tone }: { text: string; tone: "danger" | "muted" }) {
 function TranscriptPanel({
   state,
   displayMode,
+  insertMode,
+  onInsert,
 }: {
   state: ExtensionRecordingState;
   displayMode: DisplayMode;
+  insertMode: InsertMode;
+  onInsert: (mode: InsertMode, text?: string) => void;
 }) {
   if (!state.partial && state.finals.length === 0) {
     return (
@@ -617,14 +631,23 @@ function TranscriptPanel({
           <div
             key={sentence.id}
             className={clsx(
-              "group relative rounded-md border px-3 py-2 pr-9 text-sm leading-relaxed",
+              "group relative rounded-md border px-3 py-2 pr-[68px] text-sm leading-relaxed",
               showPolished
                 ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
                 : "border-border bg-bg text-slate-200",
             )}
           >
             <p className="whitespace-pre-wrap">{text}</p>
-            <CopyIconButton text={text} className="absolute right-1.5 top-1.5" />
+            <div className="absolute right-1.5 top-1.5 flex gap-1">
+              <CopyIconButton text={text} />
+              <IconActionButton
+                aria-label="插入这条到光标处"
+                title="插入这条到光标处"
+                onClick={() => onInsert(insertMode, text)}
+              >
+                <Send size={13} />
+              </IconActionButton>
+            </div>
           </div>
         );
       })}
@@ -705,7 +728,31 @@ function CopyIconButton({ text, className }: { text: string; className?: string 
         }
       }}
     >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
+      {copied ? <Check size={13} /> : <Copy size={13} />}
+    </button>
+  );
+}
+
+function IconActionButton({
+  children,
+  className,
+  onClick,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={clsx(
+        "flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-surface/80 text-muted opacity-0 transition hover:border-accent hover:text-accent group-hover:opacity-100 focus:opacity-100",
+        className,
+      )}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick?.(event);
+      }}
+      {...rest}
+    >
+      {children}
     </button>
   );
 }

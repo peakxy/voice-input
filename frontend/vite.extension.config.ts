@@ -44,7 +44,7 @@ function extensionManifestPlugin(apiBaseUrl: string): Plugin {
             matches: ["<all_urls>"],
           },
         ],
-        permissions: ["activeTab", "commands", "offscreen", "sidePanel", "storage", "tabs"],
+        permissions: ["activeTab", "commands", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
         host_permissions: [`${backendOrigin.replace(/\/$/, "")}/*`, "<all_urls>"],
         commands: {
           "open-recording-panel": {

@@ -36,12 +36,23 @@ type ChromeOffscreen = {
   hasDocument?: () => Promise<boolean>;
 };
 
+type ChromeScripting = {
+  executeScript: (injection: {
+    target: { tabId: number; allFrames?: boolean };
+    files?: string[];
+    func?: (...args: never[]) => unknown;
+    args?: unknown[];
+    world?: "ISOLATED" | "MAIN";
+  }) => Promise<Array<{ result?: unknown; frameId?: number }>>;
+};
+
 export type ChromeApi = {
   runtime?: ChromeRuntime;
   tabs?: ChromeTabs;
   sidePanel?: ChromeSidePanel;
   commands?: ChromeCommands;
   offscreen?: ChromeOffscreen;
+  scripting?: ChromeScripting;
   storage?: {
     local?: {
       get: (keys: string | string[] | null) => Promise<Record<string, unknown>>;
