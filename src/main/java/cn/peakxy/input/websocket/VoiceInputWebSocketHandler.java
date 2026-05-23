@@ -9,7 +9,6 @@ import cn.peakxy.input.event.SentenceFinalizedEvent;
 import cn.peakxy.input.service.AuthService;
 import cn.peakxy.input.service.CommandWordService;
 import cn.peakxy.input.service.HotwordService;
-import com.alibaba.dashscope.audio.omni.OmniRealtimeAudioFormat;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeConfig;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeModality;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeTranscriptionParam;
@@ -93,15 +92,12 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
                 transcriptionParam.setInputSampleRate(16000);
                 transcriptionParam.setInputAudioFormat("pcm");
                 transcriptionParam.setLanguage("zh");
-                transcriptionParam.setCorpusText(String.join("\n", hotwords));
+                if (hotwords != null && !hotwords.isEmpty()) {
+                    transcriptionParam.setCorpusText(String.join("\n", hotwords));
+                }
                 OmniRealtimeConfig config = OmniRealtimeConfig.builder()
-                        .modalities(List.of(OmniRealtimeModality.TEXT, OmniRealtimeModality.AUDIO))
-                        .inputAudioFormat(OmniRealtimeAudioFormat.PCM_16000HZ_MONO_16BIT)
-                        .enableInputAudioTranscription(true)
-                        .InputAudioTranscription("paraformer-realtime-v2")
+                        .modalities(List.of(OmniRealtimeModality.TEXT))
                         .transcriptionConfig(transcriptionParam)
-                        .enableTurnDetection(true)
-                        .turnDetectionType("server_vad")
                         .build();
                 asrSession.connect(config);
                 send(session, new WebSocketServerMessage("ready", session.getId(), null, null));
