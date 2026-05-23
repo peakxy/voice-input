@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.peakxy.input.mapper.UserMapper">
+
+    <resultMap id="userResult" type="cn.peakxy.input.domain.UserAccount">
+        <id property="id" column="id"/>
+        <result property="username" column="username"/>
+        <result property="passwordHash" column="password_hash"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <select id="findById" resultMap="userResult">
+        SELECT id, username, password_hash, created_at
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <select id="findByUsername" resultMap="userResult">
+        SELECT id, username, password_hash, created_at
+        FROM users
+        WHERE username = #{username}
+    </select>
+
+    <select id="existsByUsername" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM users WHERE username = #{username})
+    </select>
+
+    <insert id="insert" parameterType="cn.peakxy.input.domain.UserAccount"
+            useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO users (username, password_hash, created_at)
+        VALUES (#{username}, #{passwordHash}, NOW(6))
+    </insert>
+
+</mapper>

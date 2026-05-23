@@ -3,14 +3,6 @@ spring:
     name: voice-input-backend
   profiles:
     active: local
-  jpa:
-    open-in-view: false
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
-    show-sql: false
   servlet:
     multipart:
       max-file-size: 32MB
@@ -19,6 +11,12 @@ spring:
     redis:
       repositories:
         enabled: false
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    default-statement-timeout: 5
 
 server:
   port: 8080
@@ -30,6 +28,10 @@ app:
     ttl-minutes: 120
   websocket:
     endpoint: /ws/transcript
+    heartbeat:
+      interval: 20s
+      timeout: 10s
+      idle-max: 120s
   asr:
     provider: dashscope
     hotword-default-group: 通用
@@ -43,12 +45,50 @@ app:
     api-key: sk-6su8zF5T3JagKwX44nwLGzhnK6UwtUIbUeB6atnZ1Qtp3gZk
     completions-path: v1/chat/completions
     embeddings-path: v1/embeddings
+  cache:
+    user-by-id:
+      caffeine: 5m
+      redis: 30m
+    hotword-list-by-user:
+      caffeine: 1m
+      redis: 10m
+    hotwords-by-user-group:
+      caffeine: 1m
+      redis: 10m
+    recent-transcripts-by-user:
+      caffeine: 30s
+      redis: 5m
+    hotword-seed-all:
+      caffeine: 10m
+      redis: 1h
+  hotword-seed:
+    cron: "0 17 4 * * *"
+    timeout: 10s
+    default-group: 通用
+    default-top-n: 50
+    user-agent: "voice-input-backend/1.0 (+contact@example.com)"
+    sources:
+      - name: weibo
+        enabled: true
+        url: "https://weibo.com/ajax/side/hotSearch"
+        parser: weibo
+        rpm: 6
+      - name: baidu
+        enabled: true
+        url: "https://top.baidu.com/api/board?tab=realtime"
+        parser: baidu
+        rpm: 6
+      - name: zhihu
+        enabled: true
+        url: "https://www.zhihu.com/api/v3/feed/topstory/hot-lists/total"
+        parser: zhihu
+        rpm: 6
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
 
 logging:
   level:

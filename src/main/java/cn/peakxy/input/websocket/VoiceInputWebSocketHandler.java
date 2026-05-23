@@ -13,6 +13,8 @@ import com.alibaba.dashscope.audio.omni.OmniRealtimeConfig;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeModality;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeTranscriptionParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.BinaryMessage;
@@ -23,12 +25,15 @@ import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(VoiceInputWebSocketHandler.class);
 
     private final ObjectMapper objectMapper;
     private final TranscriptSessionRegistry sessionRegistry;
@@ -40,6 +45,8 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
     private final ApplicationEventPublisher eventPublisher;
     private final AppProperties appProperties;
     private final Map<String, DashScopeAsrClient.AsrSession> asrSessions = new ConcurrentHashMap<>();
+    private final Map<String, WebSocketSession> activeSessions = new ConcurrentHashMap<>();
+    private volatile WebSocketHeartbeatScheduler heartbeatScheduler;
 
     public VoiceInputWebSocketHandler(ObjectMapper objectMapper,
                                       TranscriptSessionRegistry sessionRegistry,
@@ -64,13 +71,34 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         messageSender.register(session);
+        activeSessions.put(session.getId(), session);
     }
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
             WebSocketClientMessage clientMessage = objectMapper.readValue(message.getPayload(), WebSocketClientMessage.class);
-            if ("start".equals(clientMessage.type())) {
+            String type = clientMessage.type();
+            if ("pong".equals(type)) {
+                TranscriptSessionState state = sessionRegistry.get(session.getId());
+                if (state != null) {
+                    state.markInbound(Instant.now());
+                    state.resetPongState();
+                }
+                if (heartbeatScheduler != null) {
+                    heartbeatScheduler.recordPongReceived();
+                }
+                return;
+            }
+            if ("ping".equals(type)) {
+                TranscriptSessionState state = sessionRegistry.get(session.getId());
+                if (state != null) {
+                    state.markInbound(Instant.now());
+                }
+                send(session, new WebSocketServerMessage("pong", session.getId(), null, null));
+                return;
+            }
+            if ("start".equals(type)) {
                 Long userId = extractUserId(session);
                 authService.requireUserById(userId);
                 String hotwordGroup = clientMessage.hotwordGroup() == null || clientMessage.hotwordGroup().isBlank()
@@ -99,14 +127,14 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
                         .transcriptionConfig(transcriptionParam)
                         .build();
                 asrSession.connect(config);
+                state.markInbound(Instant.now());
                 send(session, new WebSocketServerMessage("ready", session.getId(), null, null));
-            } else if ("stop".equals(clientMessage.type())) {
-                sessionRegistry.remove(session.getId());
-                DashScopeAsrClient.AsrSession asrSession = asrSessions.remove(session.getId());
-                if (asrSession != null) {
-                    asrSession.commit();
-                    asrSession.close();
+            } else if ("stop".equals(type)) {
+                TranscriptSessionState state = sessionRegistry.get(session.getId());
+                if (state != null) {
+                    state.markInbound(Instant.now());
                 }
+                releaseSession(session.getId());
                 send(session, new WebSocketServerMessage("closed", session.getId(), null, null));
             }
         } catch (Exception ex) {
@@ -121,6 +149,7 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
             send(session, new WebSocketServerMessage("error", session.getId(), null, "session not started"));
             return;
         }
+        state.markInbound(Instant.now());
         DashScopeAsrClient.AsrSession asrSession = asrSessions.get(session.getId());
         if (asrSession == null) {
             send(session, new WebSocketServerMessage("error", session.getId(), null, "asr session missing"));
@@ -132,12 +161,55 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        sessionRegistry.remove(session.getId());
-        messageSender.unregister(session.getId());
-        DashScopeAsrClient.AsrSession asrSession = asrSessions.remove(session.getId());
+        cleanup(session.getId());
+    }
+
+    /** Iterated by the heartbeat scheduler to enumerate live sessions. */
+    public Map<String, WebSocketSession> activeSessions() {
+        return activeSessions;
+    }
+
+    void bindHeartbeatScheduler(WebSocketHeartbeatScheduler scheduler) {
+        this.heartbeatScheduler = scheduler;
+    }
+
+    void sendHeartbeat(WebSocketSession session) {
+        try {
+            send(session, new WebSocketServerMessage("ping", session.getId(), null, null));
+        } catch (IOException ex) {
+            log.debug("Failed to send heartbeat to {}: {}", session.getId(), ex.getMessage());
+        }
+    }
+
+    void forceClose(WebSocketSession session, CloseStatus status) {
+        try {
+            session.close(status);
+        } catch (IOException ex) {
+            log.debug("Failed to close session {} cleanly: {}", session.getId(), ex.getMessage());
+        }
+        cleanup(session.getId());
+    }
+
+    private void cleanup(String sessionId) {
+        sessionRegistry.remove(sessionId);
+        messageSender.unregister(sessionId);
+        activeSessions.remove(sessionId);
+        releaseSession(sessionId);
+    }
+
+    private void releaseSession(String sessionId) {
+        DashScopeAsrClient.AsrSession asrSession = asrSessions.remove(sessionId);
         if (asrSession != null) {
-            asrSession.commit();
-            asrSession.close();
+            try {
+                asrSession.commit();
+            } catch (RuntimeException ex) {
+                log.debug("ASR commit on close failed for {}: {}", sessionId, ex.getMessage());
+            }
+            try {
+                asrSession.close();
+            } catch (RuntimeException ex) {
+                log.debug("ASR close failed for {}: {}", sessionId, ex.getMessage());
+            }
         }
     }
 
@@ -155,6 +227,10 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
     private void send(WebSocketSession session, WebSocketServerMessage message) throws IOException {
         synchronized (session) {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(message)));
+        }
+        TranscriptSessionState state = sessionRegistry.get(session.getId());
+        if (state != null) {
+            state.markOutbound(Instant.now());
         }
     }
 
