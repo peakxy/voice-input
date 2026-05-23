@@ -49,3 +49,8 @@ management:
     web:
       exposure:
         include: health,info
+
+logging:
+  level:
+    cn.peakxy.input.client: DEBUG
+    cn.peakxy.input.websocket: DEBUG

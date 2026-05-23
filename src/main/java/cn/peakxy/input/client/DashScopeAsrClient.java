@@ -5,20 +5,22 @@ import cn.peakxy.input.event.ProviderHealthEvent;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeCallback;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeConfig;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeConversation;
-import com.alibaba.dashscope.audio.omni.OmniRealtimeModality;
 import com.alibaba.dashscope.audio.omni.OmniRealtimeParam;
 import com.alibaba.dashscope.exception.NoApiKeyException;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.function.Consumer;
 
 @Component
 public class DashScopeAsrClient {
+
+    private static final Logger log = LoggerFactory.getLogger(DashScopeAsrClient.class);
 
     private final ApplicationEventPublisher eventPublisher;
 
@@ -31,22 +33,34 @@ public class DashScopeAsrClient {
                                   String workspace,
                                   String url,
                                   Consumer<WebSocketServerMessage> sink) {
-        OmniRealtimeParam param = OmniRealtimeParam.builder()
+        OmniRealtimeParam.OmniRealtimeParamBuilder<?, ?> builder = OmniRealtimeParam.builder()
                 .model(model)
                 .apikey(apiKey)
-                .workspace(workspace)
-                .url(url)
-                .build();
+                .url(url);
+        if (workspace != null && !workspace.isBlank() && !"default".equalsIgnoreCase(workspace)) {
+            builder.workspace(workspace);
+        }
+        OmniRealtimeParam param = builder.build();
 
         OmniRealtimeCallback callback = new OmniRealtimeCallback() {
             @Override
             public void onOpen() {
-                sink.accept(new WebSocketServerMessage("ready", null, null, null));
+                log.info("DashScope conversation opened");
             }
 
             @Override
             public void onEvent(JsonObject event) {
                 String type = readString(event, "type");
+                if ("error".equalsIgnoreCase(type) || type.endsWith(".error")) {
+                    log.warn("DashScope event error: {}", event);
+                    JsonElement errorElement = event.get("error");
+                    String errorMessage = errorElement != null ? errorElement.toString() : event.toString();
+                    sink.accept(new WebSocketServerMessage("error", null, null, errorMessage));
+                    return;
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("DashScope event: {}", type);
+                }
                 if ("conversation.item.input_audio_transcription.text".equals(type)
                         || "conversation.item.input_audio_transcription.delta".equals(type)
                         || "transcription".equals(type)) {
@@ -63,7 +77,9 @@ public class DashScopeAsrClient {
 
             @Override
             public void onClose(int statusCode, String message) {
-                sink.accept(new WebSocketServerMessage("closed", null, null, message));
+                log.warn("DashScope conversation closed: code={} message={}", statusCode, message);
+                sink.accept(new WebSocketServerMessage("closed", null, null,
+                        "DashScope closed (code=" + statusCode + "): " + message));
             }
         };
 
@@ -83,11 +99,20 @@ public class DashScopeAsrClient {
 
         public void connect(OmniRealtimeConfig config) {
             try {
+                log.info("Connecting DashScope conversation");
                 conversation.connect();
+                log.info("DashScope connected, sending session config");
                 conversation.updateSession(config);
+                log.info("DashScope session updated, ready");
+                sink.accept(new WebSocketServerMessage("ready", null, null, null));
             } catch (NoApiKeyException | InterruptedException ex) {
+                log.error("DashScope connect failed", ex);
                 eventPublisher.publishEvent(new ProviderHealthEvent("dashscope", ex.getMessage(), ex));
-                throw new IllegalStateException("Failed to connect DashScope session", ex);
+                throw new IllegalStateException("Failed to connect DashScope session: " + ex.getMessage(), ex);
+            } catch (RuntimeException ex) {
+                log.error("DashScope connect failed", ex);
+                eventPublisher.publishEvent(new ProviderHealthEvent("dashscope", ex.getMessage(), ex));
+                throw new IllegalStateException("Failed to connect DashScope session: " + ex.getMessage(), ex);
             }
         }
 
@@ -102,6 +127,7 @@ public class DashScopeAsrClient {
             } catch (RuntimeException ex) {
                 closed = true;
                 sink.accept(new WebSocketServerMessage("error", null, null, ex.getMessage()));
+                sink.accept(new WebSocketServerMessage("closed", null, null, ex.getMessage()));
             }
         }
 
