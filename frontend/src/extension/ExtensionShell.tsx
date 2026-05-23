@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  CopyCheck,
+  Check,
+  Copy,
   Loader2,
   LogOut,
   Mic,
   MicOff,
   PanelRightOpen,
   RotateCcw,
-  Sparkles,
+  Send,
   User,
 } from "lucide-react";
 import clsx from "clsx";
@@ -42,6 +43,7 @@ type UserState = {
 };
 
 type ViewState = "loading" | "welcome" | "login" | "record";
+type DisplayMode = "raw" | "polished";
 
 const chrome = getChrome();
 
@@ -62,6 +64,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
   const [groups, setGroups] = useState<string[]>(["通用"]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("polished");
 
   const isRecording = state.status === "recording";
   const isStarting = state.status === "starting";
@@ -292,6 +295,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
             <RecordView
               busy={busy}
               canStart={canStart}
+              displayMode={displayMode}
               finalText={finalText}
               groups={groups}
               isRecording={isRecording}
@@ -299,6 +303,7 @@ export function ExtensionShell({ surface }: ExtensionShellProps) {
               message={message}
               polishedText={polishedText}
               state={state}
+              onDisplayModeChange={setDisplayMode}
               onGroupChange={(group) => setState((current) => ({ ...current, activeGroup: group }))}
               onInsert={insert}
               onReset={reset}
@@ -432,6 +437,7 @@ function LoginView({
 function RecordView({
   busy,
   canStart,
+  displayMode,
   finalText,
   groups,
   isRecording,
@@ -439,6 +445,7 @@ function RecordView({
   message,
   polishedText,
   state,
+  onDisplayModeChange,
   onGroupChange,
   onInsert,
   onReset,
@@ -447,6 +454,7 @@ function RecordView({
 }: {
   busy: boolean;
   canStart: boolean;
+  displayMode: DisplayMode;
   finalText: string;
   groups: string[];
   isRecording: boolean;
@@ -454,12 +462,17 @@ function RecordView({
   message: string | null;
   polishedText: string;
   state: ExtensionRecordingState;
+  onDisplayModeChange: (mode: DisplayMode) => void;
   onGroupChange: (group: string) => void;
   onInsert: (mode: InsertMode) => void;
   onReset: () => void;
   onStart: () => void;
   onStop: () => void;
 }) {
+  const activeText = displayMode === "polished" ? polishedText : finalText;
+  const insertMode: InsertMode = displayMode === "polished" ? "polished" : "final";
+  const polishedAvailable = state.finals.some((sentence) => sentence.polishedText);
+
   return (
     <div className="space-y-3">
       <section className="space-y-3 border-y border-border/80 py-3">
@@ -502,23 +515,58 @@ function RecordView({
         </div>
       </section>
 
-      <TranscriptPanel state={state} />
-
-      <section className="grid grid-cols-2 gap-2">
-        <Button size="sm" variant="secondary" disabled={!finalText} onClick={() => onInsert("final")}>
-          <CopyCheck size={14} />
-          插入原文
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!polishedText}
-          onClick={() => onInsert("polished")}
+      <section className="flex items-center justify-between gap-2">
+        <div
+          role="tablist"
+          aria-label="显示模式"
+          className="inline-flex rounded-md border border-border bg-surface p-0.5 text-xs"
         >
-          <Sparkles size={14} />
-          插入润色
-        </Button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={displayMode === "raw"}
+            className={clsx(
+              "rounded px-3 py-1 transition",
+              displayMode === "raw"
+                ? "bg-accent text-white"
+                : "text-muted hover:text-slate-100",
+            )}
+            onClick={() => onDisplayModeChange("raw")}
+          >
+            原文
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={displayMode === "polished"}
+            disabled={!polishedAvailable && state.finals.length === 0}
+            className={clsx(
+              "rounded px-3 py-1 transition",
+              displayMode === "polished"
+                ? "bg-accent text-white"
+                : "text-muted hover:text-slate-100",
+              !polishedAvailable && state.finals.length > 0 ? "opacity-60" : "",
+            )}
+            onClick={() => onDisplayModeChange("polished")}
+          >
+            润色
+          </button>
+        </div>
+        <CopyButton text={activeText} label="复制全部" />
       </section>
+
+      <TranscriptPanel state={state} displayMode={displayMode} />
+
+      <Button
+        size="sm"
+        variant="secondary"
+        className="w-full"
+        disabled={!activeText}
+        onClick={() => onInsert(insertMode)}
+      >
+        <Send size={14} />
+        插入到当前页面
+      </Button>
 
       {message || state.error ? (
         <Message text={message ?? state.error ?? ""} tone={state.status === "error" ? "danger" : "muted"} />
@@ -542,7 +590,13 @@ function Message({ text, tone }: { text: string; tone: "danger" | "muted" }) {
   );
 }
 
-function TranscriptPanel({ state }: { state: ExtensionRecordingState }) {
+function TranscriptPanel({
+  state,
+  displayMode,
+}: {
+  state: ExtensionRecordingState;
+  displayMode: DisplayMode;
+}) {
   if (!state.partial && state.finals.length === 0) {
     return (
       <section className="min-h-[96px] rounded-md border border-dashed border-border bg-surface/45 px-3 py-8 text-center text-xs text-muted">
@@ -553,25 +607,106 @@ function TranscriptPanel({ state }: { state: ExtensionRecordingState }) {
 
   return (
     <section className="max-h-[310px] space-y-2 overflow-y-auto rounded-md border border-border bg-surface/65 p-3">
-      {state.finals.map((sentence) => (
-        <p
-          key={sentence.id}
-          className={clsx(
-            "whitespace-pre-wrap rounded-md border px-3 py-2 text-sm leading-relaxed",
-            sentence.polishedText
-              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
-              : "border-border bg-bg text-slate-200",
-          )}
-        >
-          {sentence.polishedText ?? sentence.rawText}
-        </p>
-      ))}
+      {state.finals.map((sentence) => {
+        const showPolished = displayMode === "polished" && Boolean(sentence.polishedText);
+        const text = showPolished
+          ? sentence.polishedText ?? ""
+          : sentence.rawText || sentence.polishedText || "";
+        if (!text) return null;
+        return (
+          <div
+            key={sentence.id}
+            className={clsx(
+              "group relative rounded-md border px-3 py-2 pr-9 text-sm leading-relaxed",
+              showPolished
+                ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
+                : "border-border bg-bg text-slate-200",
+            )}
+          >
+            <p className="whitespace-pre-wrap">{text}</p>
+            <CopyIconButton text={text} className="absolute right-1.5 top-1.5" />
+          </div>
+        );
+      })}
       {state.partial && (
         <p className="whitespace-pre-wrap rounded-md border border-dashed border-accent/40 bg-accentSoft/40 px-3 py-2 text-sm italic text-accent">
           {state.partial}
         </p>
       )}
     </section>
+  );
+}
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  if (!text) return false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fall through to legacy path
+  }
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+function CopyButton({ text, label }: { text: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      disabled={!text}
+      onClick={async () => {
+        const ok = await copyToClipboard(text);
+        if (ok) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+        }
+      }}
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+      {copied ? "已复制" : label}
+    </Button>
+  );
+}
+
+function CopyIconButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label={copied ? "已复制" : "复制"}
+      title={copied ? "已复制" : "复制"}
+      className={clsx(
+        "flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-surface/80 text-muted opacity-0 transition hover:border-accent hover:text-accent group-hover:opacity-100 focus:opacity-100",
+        copied ? "opacity-100 text-emerald-300" : "",
+        className,
+      )}
+      onClick={async (event) => {
+        event.stopPropagation();
+        const ok = await copyToClipboard(text);
+        if (ok) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+        }
+      }}
+    >
+      {copied ? <Check size={14} /> : <Copy size={14} />}
+    </button>
   );
 }
 
