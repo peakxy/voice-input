@@ -33,13 +33,16 @@ app:
   asr:
     provider: dashscope
     hotword-default-group: 通用
-    model: omni-realtime
-    api-key: change-me-in-local-env
+    model: qwen3-asr-flash-realtime
+    api-key: sk-063dc4148ca3405e88a8c23879f9638c
     workspace: default
+    url: wss://dashscope.aliyuncs.com/api-ws/v1/realtime
   llm:
-    model: deepseek-chat
-    base-url: https://api.deepseek.com
-    api-key: change-me-in-local-env
+    model: gpt-5.5
+    base-url: https://api-s.zwenooo.link/
+    api-key: sk-6su8zF5T3JagKwX44nwLGzhnK6UwtUIbUeB6atnZ1Qtp3gZk
+    completions-path: v1/chat/completions
+    embeddings-path: v1/embeddings
 
 management:
   endpoints:

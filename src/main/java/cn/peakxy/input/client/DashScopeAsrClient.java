@@ -29,11 +29,13 @@ public class DashScopeAsrClient {
     public AsrSession openSession(String model,
                                   String apiKey,
                                   String workspace,
+                                  String url,
                                   Consumer<WebSocketServerMessage> sink) {
         OmniRealtimeParam param = OmniRealtimeParam.builder()
                 .model(model)
                 .apikey(apiKey)
                 .workspace(workspace)
+                .url(url)
                 .build();
 
         OmniRealtimeCallback callback = new OmniRealtimeCallback() {
@@ -45,14 +47,17 @@ public class DashScopeAsrClient {
             @Override
             public void onEvent(JsonObject event) {
                 String type = readString(event, "type");
-                if ("transcription".equals(type) || "conversation.item.input_audio_transcription.delta".equals(type)) {
-                    String text = readNestedText(event);
+                if ("conversation.item.input_audio_transcription.text".equals(type)
+                        || "conversation.item.input_audio_transcription.delta".equals(type)
+                        || "transcription".equals(type)) {
+                    String text = readTranscriptText(event);
                     sink.accept(new WebSocketServerMessage("partial", null, text, null));
-                } else if ("conversation.item.input_audio_transcription.completed".equals(type) || "final".equals(type)) {
-                    String text = readNestedText(event);
+                } else if ("conversation.item.input_audio_transcription.completed".equals(type)
+                        || "final".equals(type)) {
+                    String text = readTranscriptText(event);
                     sink.accept(new WebSocketServerMessage("final", null, text, null));
                 } else if (textAvailable(event)) {
-                    sink.accept(new WebSocketServerMessage("partial", null, readNestedText(event), null));
+                    sink.accept(new WebSocketServerMessage("partial", null, readTranscriptText(event), null));
                 }
             }
 
@@ -101,31 +106,39 @@ public class DashScopeAsrClient {
     }
 
     private boolean textAvailable(JsonObject event) {
-        return !readNestedText(event).isBlank();
+        return !readTranscriptText(event).isBlank();
     }
 
-    private String readNestedText(JsonObject event) {
+    private String readTranscriptText(JsonObject event) {
         if (event == null) {
             return "";
+        }
+        JsonElement transcript = event.get("transcript");
+        if (transcript != null && transcript.isJsonPrimitive()) {
+            return transcript.getAsString();
+        }
+        JsonElement text = event.get("text");
+        JsonElement stash = event.get("stash");
+        if (text != null && text.isJsonPrimitive()) {
+            return text.getAsString() + (stash != null && stash.isJsonPrimitive() ? stash.getAsString() : "");
         }
         JsonElement output = event.get("output");
         if (output != null && output.isJsonObject()) {
             JsonObject outputObject = output.getAsJsonObject();
-            JsonElement transcript = outputObject.get("transcript");
-            if (transcript != null && transcript.isJsonObject()) {
-                JsonObject transcriptObject = transcript.getAsJsonObject();
-                JsonElement text = transcriptObject.get("text");
-                if (text != null && text.isJsonPrimitive()) {
-                    return text.getAsString();
+            JsonElement nestedTranscript = outputObject.get("transcript");
+            if (nestedTranscript != null && nestedTranscript.isJsonObject()) {
+                JsonObject transcriptObject = nestedTranscript.getAsJsonObject();
+                JsonElement nestedText = transcriptObject.get("text");
+                if (nestedText != null && nestedText.isJsonPrimitive()) {
+                    return nestedText.getAsString();
                 }
             }
-            JsonElement text = outputObject.get("text");
-            if (text != null && text.isJsonPrimitive()) {
-                return text.getAsString();
+            JsonElement outputText = outputObject.get("text");
+            if (outputText != null && outputText.isJsonPrimitive()) {
+                return outputText.getAsString();
             }
         }
-        JsonElement text = event.get("text");
-        return text != null && text.isJsonPrimitive() ? text.getAsString() : "";
+        return "";
     }
 
     private String readString(JsonObject event, String key) {

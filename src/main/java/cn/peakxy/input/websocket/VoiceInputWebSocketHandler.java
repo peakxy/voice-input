@@ -84,6 +84,7 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
                         appProperties.asr().model(),
                         appProperties.asr().apiKey(),
                         appProperties.asr().workspace(),
+                        appProperties.asr().url(),
                         wsMessage -> forward(session, wsMessage)
                 );
                 asrSessions.put(session.getId(), asrSession);
@@ -108,6 +109,7 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
                 sessionRegistry.remove(session.getId());
                 DashScopeAsrClient.AsrSession asrSession = asrSessions.remove(session.getId());
                 if (asrSession != null) {
+                    asrSession.commit();
                     asrSession.close();
                 }
                 send(session, new WebSocketServerMessage("closed", session.getId(), null, null));
@@ -139,6 +141,7 @@ public class VoiceInputWebSocketHandler extends BinaryWebSocketHandler {
         messageSender.unregister(session.getId());
         DashScopeAsrClient.AsrSession asrSession = asrSessions.remove(session.getId());
         if (asrSession != null) {
+            asrSession.commit();
             asrSession.close();
         }
     }
