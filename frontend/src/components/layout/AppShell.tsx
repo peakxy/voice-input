@@ -4,7 +4,7 @@ import clsx from "clsx";
 
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/stores/auth";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast-context";
 
 const navItems = [
   { to: "/", label: "录入", icon: Mic, end: true },

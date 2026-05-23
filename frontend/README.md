@@ -42,7 +42,18 @@ pnpm dev       # 启动 vite dev server，监听 5173 端口
 pnpm dev          # 开发模式
 pnpm typecheck    # tsc --noEmit
 pnpm build        # 类型检查 + vite build
+pnpm build:extension # 类型检查 + Chrome extension build
 pnpm preview      # 预览生产构建
 pnpm lint         # ESLint
 pnpm format       # Prettier
 ```
+
+## Chrome 扩展
+
+扩展入口和 Web SPA 分开构建：
+
+```bash
+pnpm build:extension
+```
+
+构建产物位于 `dist-extension/`。在 Chrome 的“加载已解压的扩展程序”中选择该目录即可。扩展包含 popup、side panel、background service worker、offscreen recorder 和 content script，快捷键默认为 `Ctrl+Shift+Y`，macOS 为 `Command+Shift+Y`。

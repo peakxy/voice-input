@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/toast-context";
 import { startMicrophone, type AudioStreamHandle } from "@/lib/audio";
 import { extractErrorMessage } from "@/lib/api";
 import { HOTWORDS_QUERY_KEY, listHotwords } from "@/lib/hotwords";
