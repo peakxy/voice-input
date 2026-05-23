@@ -7,12 +7,13 @@ export type AudioStreamOptions = {
   onChunk: (chunk: ArrayBuffer) => void;
   targetSampleRate?: number;
   chunkMs?: number;
+  workletUrl?: string;
 };
 
 const WORKLET_URL = "/worklets/pcm-downsampler.js";
 
 export async function startMicrophone(options: AudioStreamOptions): Promise<AudioStreamHandle> {
-  const { onChunk, targetSampleRate = 16000, chunkMs = 50 } = options;
+  const { onChunk, targetSampleRate = 16000, chunkMs = 50, workletUrl = WORKLET_URL } = options;
 
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
     throw new Error("当前浏览器不支持麦克风采集");
@@ -37,7 +38,7 @@ export async function startMicrophone(options: AudioStreamOptions): Promise<Audi
 
   const audioContext = new AudioContextCtor();
   try {
-    await audioContext.audioWorklet.addModule(WORKLET_URL);
+    await audioContext.audioWorklet.addModule(workletUrl);
   } catch (err) {
     stream.getTracks().forEach((track) => track.stop());
     await audioContext.close();
