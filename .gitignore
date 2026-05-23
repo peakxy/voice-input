@@ -42,3 +42,4 @@ build/
 /.codex/
 /.idea/
 /openspec/
+/frontend/dist/
