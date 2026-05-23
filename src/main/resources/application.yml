@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: voice-input-backend
+  profiles:
+    active: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+  servlet:
+    multipart:
+      max-file-size: 32MB
+      max-request-size: 32MB
+  data:
+    redis:
+      repositories:
+        enabled: false
+
+server:
+  port: 8080
+
+app:
+  jwt:
+    issuer: voice-input-backend
+    secret: voice-input-backend-demo-secret-key-2026-0123456789
+    ttl-minutes: 120
+  websocket:
+    endpoint: /ws/transcript
+  asr:
+    provider: dashscope
+    hotword-default-group: 通用
+  llm:
+    model: deepseek-chat
+    base-url: https://api.deepseek.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
