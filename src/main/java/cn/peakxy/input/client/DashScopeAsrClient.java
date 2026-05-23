@@ -74,6 +74,7 @@ public class DashScopeAsrClient {
     public final class AsrSession {
         private final OmniRealtimeConversation conversation;
         private final Consumer<WebSocketServerMessage> sink;
+        private volatile boolean closed = false;
 
         private AsrSession(OmniRealtimeConversation conversation, Consumer<WebSocketServerMessage> sink) {
             this.conversation = conversation;
@@ -91,17 +92,37 @@ public class DashScopeAsrClient {
         }
 
         public void appendAudio(ByteBuffer frame) {
+            if (closed) {
+                return;
+            }
             byte[] bytes = new byte[frame.remaining()];
             frame.get(bytes);
-            conversation.appendAudio(java.util.Base64.getEncoder().encodeToString(bytes));
+            try {
+                conversation.appendAudio(java.util.Base64.getEncoder().encodeToString(bytes));
+            } catch (RuntimeException ex) {
+                closed = true;
+                sink.accept(new WebSocketServerMessage("error", null, null, ex.getMessage()));
+            }
         }
 
         public void commit() {
-            conversation.commit();
+            if (closed) {
+                return;
+            }
+            try {
+                conversation.commit();
+            } catch (RuntimeException ignored) {
+                // already closed by server, nothing to commit
+            }
         }
 
         public void close() {
-            conversation.close();
+            closed = true;
+            try {
+                conversation.close();
+            } catch (RuntimeException ignored) {
+                // already closed
+            }
         }
     }
 
