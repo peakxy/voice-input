@@ -2,6 +2,7 @@ package cn.peakxy.input.config;
 
 import cn.peakxy.input.cache.MultiLevelCacheManager;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -27,7 +28,7 @@ import java.util.Map;
 public class CacheConfig {
 
     private static final Logger log = LoggerFactory.getLogger(CacheConfig.class);
-    private static final String KEY_PREFIX = "vi:v1:";
+    private static final String KEY_PREFIX = "vi:v2:";
 
     private final AppProperties appProperties;
 
@@ -37,7 +38,15 @@ public class CacheConfig {
 
     @Bean
     public RedisCacheManager redisCacheManager(RedisConnectionFactory connectionFactory, ObjectMapper objectMapper) {
-        GenericJackson2JsonRedisSerializer valueSerializer = new GenericJackson2JsonRedisSerializer(objectMapper.copy());
+        ObjectMapper cacheObjectMapper = objectMapper.copy();
+        cacheObjectMapper.activateDefaultTypingAsProperty(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfBaseType(Object.class)
+                        .build(),
+                ObjectMapper.DefaultTyping.EVERYTHING,
+                "@class"
+        );
+        GenericJackson2JsonRedisSerializer valueSerializer = new GenericJackson2JsonRedisSerializer(cacheObjectMapper);
         RedisCacheConfiguration defaultConfig = RedisCacheConfiguration.defaultCacheConfig()
                 .computePrefixWith(name -> KEY_PREFIX + name + ":")
                 .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
