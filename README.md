@@ -20,6 +20,8 @@
 
 Voice Input 是一款现代化的语音输入解决方案，通过实时语音识别技术将语音转换为文字。项目采用前后端分离架构，支持网页版和 Chrome 插件两种使用方式，其中 Chrome 插件可在任意网页的输入框中使用，实用性更强。
 
+项目演示：[哔哩哔哩](https://www.bilibili.com/video/BV14qGH66Euy/?share_source=copy_web&vd_source=e7452a627b5165049e8611f090dcf295)
+
 ### 为什么选择 Voice Input？
 
 - 🚀 **实时转写** - 基于 WebSocket 的实时语音识别，低延迟高准确率
@@ -553,74 +555,6 @@ websocket:
 ```
 
 ---
-
-## 📦 部署
-
-### Docker 部署（推荐）
-
-```bash
-# 构建后端镜像
-docker build -t voice-input-backend .
-
-# 启动完整服务栈
-docker-compose up -d
-```
-
-### 手动部署
-
-#### 后端部署
-
-```bash
-# 打包
-mvn clean package -DskipTests
-
-# 运行
-java -jar target/voice-input-backend-1.0.0.jar \
-  --spring.profiles.active=prod \
-  --spring.datasource.url=jdbc:mysql://your-db-host:3306/voice_input \
-  --spring.data.redis.host=your-redis-host
-```
-
-#### 前端部署
-
-```bash
-# 构建
-cd frontend
-npm run build
-
-# 部署到 Nginx
-cp -r dist/* /var/www/html/
-```
-
-Nginx 配置示例：
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    root /var/www/html;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    location /ws {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
 
 ## 📄 许可证
 
